@@ -18,6 +18,7 @@ from datetime import timedelta
 from pathlib import Path
 from typing import List, Optional
 
+
 from mycroft import MycroftSkill, intent_handler
 from mycroft.audio import wait_while_speaking
 from mycroft.skills.intent_service import AdaptIntent
@@ -26,6 +27,7 @@ from mycroft.util import play_wav
 from mycroft.util.format import pronounce_number, nice_duration, join_list
 from mycroft.util.parse import extract_duration
 from mycroft.util.time import now_utc, now_local
+from pixel_ring import apa102_pixel_ring as pixel_ring
 from .skill import (
     CountdownTimer,
     extract_timer_duration,
@@ -57,6 +59,7 @@ class TimerSkill(MycroftSkill):
         self.platform = self.config_core["enclosure"].get("platform", "unknown")
         self.timer_index = 0
         self.display_group = 0
+        self.pr = {} 
         self.regex_file_path = self.find_resource("name.rx", "regex")
         self.all_timers_words = [word.strip() for word in self.translate_list("all")]
         self.save_path = Path(self.file_system.path).joinpath("save_timers")
@@ -67,7 +70,7 @@ class TimerSkill(MycroftSkill):
         self._reset_timer_index()
         if self.active_timers:
             self.log.info("found {} active timers".format(str(len(self.active_timers))))
-            self._show_gui()
+            # self._show_gui()
             self._start_display_update()
             self._start_expiration_check()
 
@@ -95,7 +98,7 @@ class TimerSkill(MycroftSkill):
         Args:
             message: Message Bus event information from the intent parser
         """
-        self._start_new_timer(message)
+        self._start_new_timer(message) 
 
     @intent_handler(
         AdaptIntent()
@@ -193,11 +196,14 @@ class TimerSkill(MycroftSkill):
             timer = self._build_timer(duration, name)
             self.active_timers.append(timer)
             self.active_timers.sort(key=lambda tmr: tmr.expiration)
+            self.pixel_ring = pixel_ring.PixelRing('status')
+            self.pixel_ring.set_brightness(10)
             if len(self.active_timers) == 1:
                 # the expiration checker isn't started here because it is started
                 # in a speech event handler and the new timer is not spoken until
                 # after the display starts.
-                self._show_gui()
+                # self._show_gui()
+                self.pixel_ring.update(0)
                 self._start_display_update()
             self._speak_new_timer(timer)
             self._save_timers()
@@ -651,19 +657,19 @@ class TimerSkill(MycroftSkill):
 
         return timer_names
 
-    def _show_gui(self):
-        """Update the device's display to show the status of active timers.
+    # def _show_gui(self):
+    #     """Update the device's display to show the status of active timers.
 
-        Runs once a second via a repeating event to keep the information on the display
-        accurate.
-        """
-        if self.gui.connected:
-            self._update_gui()
-            if self.platform == MARK_II:
-                page = "timer_mark_ii.qml"
-            else:
-                page = "timer_scalable.qml"
-            self.gui.show_page(page, override_idle=True)
+    #     Runs once a second via a repeating event to keep the information on the display
+    #     accurate.
+    #     """
+    #     if self.gui.connected:
+    #         self._update_gui()
+    #         if self.platform == MARK_II:
+    #             page = "timer_mark_ii.qml"
+    #         else:
+    #             page = "timer_scalable.qml"
+    #         self.gui.show_page(page, override_idle=True)
 
     def update_display(self):
         """Update the device's display to show the status of active timers.
@@ -671,18 +677,31 @@ class TimerSkill(MycroftSkill):
         Runs once a second via a repeating event to keep the information on the display
         accurate.
         """
-        if self.gui.connected:
-            self._update_gui()
-        elif self.platform == MARK_I:
-            self._display_timers_on_faceplate()
+        # if self.gui.connected:
+        #     self._update_gui()
+        # elif self.platform == MARK_I:
+            # self._display_timers_on_faceplate()
+        self._update_pixel_ring()
 
-    def _update_gui(self):
-        """Display active timers on a device that supports the QT GUI framework."""
-        timers_to_display = self._select_timers_to_display(display_max=4)
-        display_data = [timer.display_data for timer in timers_to_display]
-        if timers_to_display:
-            self.gui["activeTimers"] = dict(timers=display_data)
-            self.gui["activeTimerCount"] = len(timers_to_display)
+    # def _update_gui(self):
+    #     """Display active timers on a device that supports the QT GUI framework."""
+    #     timers_to_display = self._select_timers_to_display(display_max=4)
+    #     display_data = [timer.display_data for timer in timers_to_display]
+    #     if timers_to_display:
+    #         self.gui["activeTimers"] = dict(timers=display_data)
+    #         self.gui["activeTimerCount"] = len(timers_to_display)
+
+    def _update_pixel_ring(self):
+        """Update the pixel ring to show the status of active timers.
+        Runs once a second via a repeating event to keep the information on the display
+        accurate.
+        
+        """
+        # TODO  check if pixel_ring exists
+        timers_to_display = self._select_timers_to_display(display_max=1)
+        display_data = [timer.display_pr_data for timer in timers_to_display]
+        self.pixel_ring.update(display_data[0])
+
 
     def _display_timers_on_faceplate(self):
         """Display one timer on a device that supports and Arduino faceplate."""
@@ -732,6 +751,7 @@ class TimerSkill(MycroftSkill):
         Runs once every two seconds via a repeating event.
         """
         expired_timers = [timer for timer in self.active_timers if timer.expired]
+        # self.log.info(f'expired timers: {expired_timers}')
         if expired_timers:
             play_proc = play_wav(str(self.sound_file_path))
             if self.platform == MARK_I:
@@ -761,9 +781,12 @@ class TimerSkill(MycroftSkill):
                 dialog = TimerDialog(timer, self.lang)
                 dialog.build_expiration_announcement_dialog(len(self.active_timers))
                 self._stop_expiration_check()
-                if self.platform == MARK_I:
+                # if self.platform == MARK_I:
+                    # self._stop_display_update()
+                if self.pixel_ring:
+                    self.pixel_ring.off()
                     self._stop_display_update()
-                time.sleep(1)  # give the scheduled event a second to clear
+                time.sleep(2)  # give the scheduled event a second to clear
                 self.speak_dialog(dialog.name, dialog.data, wait=True)
                 timer.expiration_announced = True
                 break
@@ -845,8 +868,8 @@ class TimerSkill(MycroftSkill):
         Resume showing the active timer(s).
         """
         self._start_expiration_check()
-        if self.platform == MARK_I:
-            self._start_display_update()
+        # if self.platform == MARK_I:
+        #     self._start_display_update()
 
     def handle_speak(self, _):
         """Handle the device speaking a response to a user request.
@@ -858,26 +881,27 @@ class TimerSkill(MycroftSkill):
         """
         wait_while_speaking()
         self._start_expiration_check()
-        if self.platform == MARK_I:
-            time.sleep(2)
-            self._start_display_update()
+        # if self.platform == MARK_I:
+            # time.sleep(2)
+            # self._start_display_update()
 
     def _start_display_update(self):
         """Start an event repeating every second to update the timer display."""
         if self.active_timers:
             self.log.info("starting repeating event to update timer display")
-            if self.platform == MARK_I:
-                self.enclosure.mouth_reset()
+            # if self.platform == MARK_I:
+                # self.enclosure.mouth_reset()
             self.schedule_repeating_event(
                 self.update_display, None, 1, name="UpdateTimerDisplay"
             )
+
 
     def _stop_display_update(self):
         """Stop the repeating event that updates the timer on the display."""
         self.log.info("stopping repeating event to update timer display")
         self.cancel_scheduled_event("UpdateTimerDisplay")
-        if self.platform == MARK_I:
-            self.enclosure.mouth_reset()
+        # if self.platform == MARK_I:
+        #     self.enclosure.mouth_reset()
 
     def _start_expiration_check(self):
         """Start an event repeating every two seconds to check for expired timers."""

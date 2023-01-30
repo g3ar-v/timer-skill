@@ -96,3 +96,11 @@ class CountdownTimer:
             timerName=self.name,
             timeDelta=expiration_delta,
         )
+
+    @property
+    def display_pr_data(self) -> int:
+        """Get the number of pixels to be updated"""
+        if self.expired:
+            return 0
+        num_of_pixels = (self.time_remaining.total_seconds()/(self.duration.total_seconds()/12))
+        return round(12 - num_of_pixels)
