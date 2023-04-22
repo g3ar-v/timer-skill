@@ -1,17 +1,3 @@
-# Copyright 2017 Mycroft AI Inc.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#    http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-"""A skill to set one or more timers for things like a kitchen timer."""
 import time
 import pickle
 from datetime import timedelta
@@ -19,14 +5,14 @@ from pathlib import Path
 from typing import List, Optional
 
 
-from mycroft import MycroftSkill, intent_handler
-from mycroft.audio import wait_while_speaking
-from mycroft.skills.intent_service import AdaptIntent
-from mycroft.messagebus.message import Message
-from mycroft.util import play_wav
-from mycroft.util.format import pronounce_number, nice_duration, join_list
-from mycroft.util.parse import extract_duration
-from mycroft.util.time import now_utc, now_local
+from core import MycroftSkill, intent_handler
+from core.audio import wait_while_speaking
+from core.skills.intent_service import AdaptIntent
+from core.messagebus.message import Message
+from core.util import play_wav
+from core.util.format import pronounce_number, nice_duration, join_list
+from core.util.parse import extract_duration
+from core.util.time import now_utc, now_local
 from pixel_ring import apa102_pixel_ring as pixel_ring
 from .skill import (
     CountdownTimer,
